@@ -41,7 +41,7 @@ from beets.test.helper import (
     capture_log,
     has_program,
 )
-from beets.util import bytestring_path, displayable_path, py3_path, syspath
+from beets.util import bytestring_path, displayable_path, syspath
 
 
 class ScrubbedImportTest(_common.TestCase, ImportHelper):
@@ -235,12 +235,36 @@ class NonAutotaggedImportTest(_common.TestCase, ImportHelper):
                 == (s2[stat.ST_INO], s2[stat.ST_DEV])
             )
 
+    @unittest.skipUnless(_common.HAVE_REFLINK, "need reflinks")
+    def test_import_reflink_arrives(self):
+        # Detecting reflinks is currently tricky due to various fs
+        # implementations, we'll just check the file exists.
+        config["import"]["reflink"] = True
+        self.importer.run()
+        for mediafile in self.import_media:
+            self.assert_file_in_lib(
+                b"Tag Artist",
+                b"Tag Album",
+                util.bytestring_path(f"{mediafile.title}.mp3"),
+            )
+
+    def test_import_reflink_auto_arrives(self):
+        # Should pass regardless of reflink support due to fallback.
+        config["import"]["reflink"] = "auto"
+        self.importer.run()
+        for mediafile in self.import_media:
+            self.assert_file_in_lib(
+                b"Tag Artist",
+                b"Tag Album",
+                util.bytestring_path(f"{mediafile.title}.mp3"),
+            )
+
 
 def create_archive(session):
-    (handle, path) = mkstemp(dir=py3_path(session.temp_dir))
+    (handle, path) = mkstemp(dir=os.fsdecode(session.temp_dir))
     path = bytestring_path(path)
     os.close(handle)
-    archive = ZipFile(py3_path(path), mode="w")
+    archive = ZipFile(os.fsdecode(path), mode="w")
     archive.write(syspath(os.path.join(_common.RSRC, b"full.mp3")), "full.mp3")
     archive.close()
     path = bytestring_path(path)
@@ -295,7 +319,7 @@ class ImportTarTest(ImportZipTest):
         (handle, path) = mkstemp(dir=syspath(self.temp_dir))
         path = bytestring_path(path)
         os.close(handle)
-        archive = TarFile(py3_path(path), mode="w")
+        archive = TarFile(os.fsdecode(path), mode="w")
         archive.add(
             syspath(os.path.join(_common.RSRC, b"full.mp3")), "full.mp3"
         )
